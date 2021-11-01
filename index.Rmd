@@ -208,7 +208,3 @@ However, the density of song frequency is less concentrated at values 1 and 2 fo
 #### Concluding Remarks
 
 There were a lot of ups and downs in doing this project! I'm very pleased that the data I acquired was pretty neat and joined nicely, but I had the most trouble with visualization because I was the most interested in categorical variables and you can only make so many graphs with those. A lot of conclusions drawn from the plots or summary statistics in general came from the fact that some moon phases and constellations had more data than others, so I would love to analyze these variables again over a longer time period to make sure that results aren't skewed from some variable groups having a fewer number of observations versus others.
-
-
-
-
