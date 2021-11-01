@@ -40,14 +40,19 @@ You can have as many variables as you would like! If you found two datasets that
 Note that you will need to read these datasets into R at the top of your Rmd file like this, for example:
 
 ```{R eval=F}
+library(jsonlite)
 library(tidyverse)
-data1 <- read_csv("/path/to/dataset1.csv")
-data2 <- read_csv("/path/to/dataset2.csv")
 
-#or, if you'd prefer to read it in from some remote location
 
-data1 <- read_csv("https://some.website/dataset1.csv")
-data2 <- read_csv("https://some.website/dataset2.csv")
+
+zariaSpotify <-fromJSON("~/StreamingHistory0.json", flatten = TRUE)
+sunData <- read_csv("~/sunephemeris.csv")
+moonData <- read_csv("~/moonephemeris.csv")
+
+#https://in-the-sky.org/ephemeris.php
+#https://in-the-sky.org/article.php?term=age_of_moon
+#https://www.kaggle.com/lsind18/full-moon-calendar-1900-2050
+
 ```
 
 ### Guidelines

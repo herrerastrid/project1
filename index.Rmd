@@ -19,14 +19,28 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 
 ## Data Wrangling, Exploration, Visualization
 
-### Name and EID here
+Astrid Herrera (ach3678)
 
 #### Introduction 
 
 Paragraph or two introducing your datasets and variables, why they are interesting to you, etc.
 
+The datasets I'm using for this project consist of my best friend's Spotify data as well as an ephemeris of the sun and moon. 
+
+The Spotify data has 4 variables: endTime in which the stream ended in UTC format, artistName which is the creator of the song for each stream, trackName which lists the title of the song or video, and msPlayed which indicates how many miliseconds the track was listened to.
+The ephemerides provide variables such as day, month, year as well as times in which the sun or moon rose, set, and culminated at their highest point in the sky. Also listed is the distance from the Earth in astronomical units and the zodiac constellation that the sun or moon was located in at the time. Unique to the moon ephemeris is the age of the moon at the time in terms of phase and its brightness in magnitude. Both ephemerides were acquired from the website https://in-the-sky.org/ephemeris.php
+
+I'm interested in combining these datasets because I love astrology and would be interested to see if I can find any pattern in the songs my friend listens to depending on the "zodiac season". Of course astrology is all speculation and not fact, but I would also love to compare her listening history to the phase of the moon because there are theories that the lunar cycle affects human behavior. It would be really interesting to see the same artists or songs listened to across different zodiac signs, because that would imply that her music taste is consistent and doesn't vary based on trends or by whatever constellation the Sun or Moon is in.
+
+
+
 ```{R}
-# read your datasets in here, e.g., with read_csv()
+library(jsonlite)
+library(tidyverse)
+
+zariaSpotify <-fromJSON("~/StreamingHistory0.json", flatten = TRUE)
+sunData <- read_csv("~/sunephemeris.csv")
+moonData <- read_csv("~/moonephemeris.csv")
 
 ```
 
@@ -35,56 +49,165 @@ Paragraph or two introducing your datasets and variables, why they are interesti
 If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. Note here if you are going to do this.
 
 ```{R}
-# your tidying code (if applicable; can also wait until wrangling section)
+moonWider <- moonData %>% pivot_wider(names_from = "MoonConstellation", values_from="MoonDistAU")
+moonData <- moonWider %>% pivot_longer(cols=c(9:23), names_to="MoonConstellation", values_to="MoonDistAU", values_drop_na=T) 
+
 ```
 
     
 #### Joining/Merging
 
 ```{R}
-# your joining code
+glimpse(moonData)
+glimpse(sunData)
+glimpse(zariaSpotify)
 
-# your joining code
+moonData %>% summarize_all(n_distinct)
+sunData %>% summarize_all(n_distinct)
+zariaSpotify %>% summarize_all(n_distinct)
+
+zariaSpotify <- zariaSpotify %>% separate(endTime,into=c("Date", "Endtime"), sep=" ") %>% separate(Date,into=c("Year", "Month", "Day")) %>% mutate(Month = as.numeric(Month))
+
+ephemeris <- inner_join(moonData,sunData, by = c('Year'='Year', 'Month'='Month', 'Day'='Day')) %>% mutate(Day = as.character(Day))
+glimpse(ephemeris)
+joined <- left_join(ephemeris, zariaSpotify, by = c('Year'='Year', 'Month'='Month', 'Day'='Day'))
+ephemeris %>% summarize_all(n_distinct)
+joined %>% summarize_all(n_distinct)
+glimpse(joined)
+
+
 ```
 
-Discussions of joining here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+
+The moon ephemeris dataset contained 250 rows and 10 columns.The Sun ephemeris dataset contained 253 rows and 8 columns, and the Spotify dataset contained 10,000 rows and 4 columns.
+
+The Spotify dataset contains 829 unique song artists, 2020 unique song names, 8037 instances at which a song ended, and 4748 unique counts for milliseconds of the song played. The sun and moon ephemeris contain data for for the two years 2020 and 2021, and for 10 unique months. The moonData set also contains 30 unique values for the age of the moon, 228 unique times the moon rose, 223 unique times for both culmination in the sky and setting, 58 unique values for approximate magnification, 14 unique constellations, and 4 unique values for distance of the moon from the Earth in astronomical units. The sunData set returns 5 unique years and 11 unique months because of extraneous rows within the dataset crediting the website I got the data from and its creator as well as a timezone and location as well as 83 unique times for sunrise, 55 unique times for culmination in the sky, 120 unique times for sunset, 173 values for sun distance from the Earth in astronomical units, and 11 unique constellations.
+
+The date and song end time from the Spotify data was first separated into two variables, and the date was separated into month, day, and year variables so that it could be easily joined with the ephemeris data.
+
+A full join was performed on the two ephemerides because they contain data from the same dates and I wanted to keep all of the variables, while a left join was perfomed in combining with the Spotify data because the Spotify dataset contained streaming history from several dates that went past the ephemeris data.
+
+The final joined dataset contains 1255 unique instances at which a song ended, 746 unique artists, 1724 unique song names, and 3604 unique counts for the duration of time a song was listened to in milliseconds. Any data from the Spotify dataset past 6/5/2021 was dropped meaning 2906 rows were dropped leading to a dataset of 7094 rows and 19 variables meaning any patterns and conclusions made from this data only represent a specific time period from September 2020 to June 2021. Since a full join had been done on the ephemerides, no observations were dropped and those distinct values remain the same. The only variables every data set had in common were Date, Month, and Year.
 
 ####  Wrangling
 
 ```{R}
-# your wrangling code
+#using mutate and str_extract to create phase variable, also to recode month variable
+joined <- joined %>% mutate(AgeofMoon = as.numeric(str_extract(AgeofMoon, "[0-9]+"))) %>% mutate(MoonPhase = case_when(
+          AgeofMoon==30 | AgeofMoon==1 ~ "New Moon",
+          AgeofMoon==15 ~ "Full Moon",
+          AgeofMoon==8 ~ "First Quarter",
+          AgeofMoon==22 ~ "Last Quarter",
+          AgeofMoon<=7 & 2<=AgeofMoon ~ "Waxing Crescent",
+          AgeofMoon<=14 & 9<=AgeofMoon ~ "Waxing Gibbous",
+          AgeofMoon<=21 & 16<=AgeofMoon ~ "Waning Gibbous",
+          AgeofMoon<=29 & 23<=AgeofMoon ~ "Waning Crescent")) 
 
-# your wrangling code
+#replacing sidereal constellations to tropical
+joined <- joined %>% 
+    mutate(MoonConstellation = str_replace(MoonConstellation, "Ophiuchus", "Sagittarius")) %>%   
+    mutate(SunConstellation = str_replace(SunConstellation, "Ophiuchus", "Sagittarius")) %>%    
+    mutate(MoonConstellation = str_replace(MoonConstellation, "Cetus", "Aries")) %>% 
+    mutate(SunConstellation = str_replace(SunConstellation, "Cetus", "Aries"))
 
-# your wrangling code
+#changing msPlayed to minutesPlayed
+joined <- joined %>% mutate(minutesPlayed = msPlayed/60000)
+
+#using select to get rid of numeric variables that aren't of interest
+joined <- joined %>% select(-MoonCulm, -SunCulm, -msPlayed)
+
+##count NAs
+joined %>% summarize_all(function(x)sum(is.na(x)))
+
+#filter out skipped songs
+joined <- joined %>% filter(minutesPlayed > 0)
+
+#exploring what artists were most frequently listened to the most during sagittarius season
+joined %>% filter(SunConstellation == "Sagittarius") %>% group_by(artistName) %>% summarize(n = n()) %>% arrange(desc(n))
+
+#exploring which moon phase had the highest average song listening time
+joined %>% group_by(MoonPhase) %>% summarize(avgSongListening = mean(minutesPlayed)) %>% arrange(desc(avgSongListening))
+
+#creating summary statistics
+##all numerics
+joined  %>% summarize_if(is.numeric, list(Min = min, Max = max), na.rm=T)
+joined  %>% summarize_if(is.numeric, list(Avg = mean, Sd = sd), na.rm=T) 
+joined %>% summarize_if(is.numeric, list(Unique = n_distinct))
+
+##counts for categoricals
+joined %>% group_by(SunConstellation) %>% summarize(SunConstFreq = n()) %>% arrange(desc(SunConstFreq))
+joined %>% group_by(MoonConstellation) %>% summarize(MoonConstFreq = n()) %>% arrange(desc(MoonConstFreq))
+joined %>% group_by(artistName) %>% summarize(ArtistFreq = n()) %>% arrange(desc(ArtistFreq))
+joined %>% group_by(trackName) %>% summarize(SongFreq = n()) %>% arrange(desc(SongFreq))
+joined %>% group_by(MoonPhase) %>% summarize(PhaseFreq = n()) %>% arrange(desc(PhaseFreq))
+
+#grouping summaries
+##what was average, standard deviation, and total listening time for both every sun and moon placement combination?
+joined %>% group_by(SunConstellation, MoonConstellation) %>% summarize(AvgSongListening = mean(minutesPlayed, na.rm = T), SDSongListening = sd(minutesPlayed, na.rm = T), TotalListening = sum(minutesPlayed)) %>% arrange((SunConstellation)) %>% knitr::kable()
+##what was average, min, max, and total listening time at each moon phase?
+joined %>% group_by(MoonPhase) %>% summarize(AvgSongListening = mean(minutesPlayed, na.rm = T), MinSongListening = min(minutesPlayed, na.rm = T), MaxSongListening = max(minutesPlayed, na.rm = T), TotalListening = sum(minutesPlayed)) %>% arrange(desc(AvgSongListening)) %>% knitr :: kable()
+##who was the most frequently listened to artist during a full moon?
+joined %>% filter(MoonPhase == "Full Moon") %>% group_by(artistName) %>% summarize(n = n()) %>% arrange(desc(n)) 
+
+
+glimpse(joined)
+
 ```
 
-Your discussion of wrangling section here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+  My data wrangling began with the creation of the Moon Phase variable based off of the AgeofMoon variable given originally from the moon ephemeris. The age numbers in days were extracted and then sorted into the moon phase they represented based on a definition of moon age also provided by in-the-sky.org (https://in-the-sky.org/article.php?term=age_of_moon).
+Then, extra constellations within the ephemerides were converted from the sidereal zodiac calendar to tropical for the purpose of working with the western astrology signs that I'm more familiar with.
+The variable msPlayed representing song listening duration in milliseconds was converted to minutes so that conclusions on listening time could be made easier as minute is a much more recognizable unit of time to make sense of.
+I deleted the variables MoonCulm and SunCulm because I didn't plan on using them to compare with the Spotify data, and also filtered out songs that had a listening time of 0 because they represented songs that were skipped immediately and therefore don't contribute anything to possible patterns of listening history. I counted NAs within my dataset before this step, and found that there were 160 rows of ephemeris dates that did not correspond to any streaming history on Spotify
+
+I then started to explore a bit with my variables. My first discovery was that Chase Atlantic was the most frequently listened to artist when the Sun was in Sagittarius. I then found that the moon phase with the average longest song listening time was Waxing Gibbous.
+Summary statistics of mean, minimum, maximum, standard deviation, and distinct counts for every numeric variable were generated, and numeric variable of interest minutesPlayed had a maximum of 580.611 minutes, a minimum of 0.00005 minutes, an average of 2.564512 minutes, standard deviation of 7.22374 minutes, and 3602 unique values. A table of counts was also calculated for each categorical variable for every level. Most of the data appears to come from the time period in which the sun was in Sagittarius and also when the moon was in Sagittarius. The five most frequently listened to artists were Mystery Skulls, Chase Atlantic, BTS, GOT7, and Toby Fox. The top five most frequently listened to songs were "NUNU NANA", "The Future", "Dope", "Hellbent (feat. Snowblood)", and "Round & Round". Finally, the most frequent moon phase within the data was Waxing Crescent.
+
+I summarized more data first by grouping sunConstellation and moonConstellation, and finding average, standard deviation, and total song listening time in minutes for every combination of sun and moon sign. I found that the highest total listening time took place when the sun was in Capricorn and the moon was in Taurus, and this time period also includes the highest average and standard deviation of song duration played in minutes. Another extremely large total listening time took place when the sun and moon were in Sagittarius, but the average and standard deviation for minutes played at these placements are not as skewed. More summary statistics run on minutes played for every moon phase revealed highest total music listening time when the moon was in the phase Waxing Crescent, and other very high total song duration play times during the other intermediate phases except for Waning Gibbous. Lastly, I found that the most frequently listened to artist during a Full Moon was Toby Fox.
+
+
 
 
 #### Visualizing
 
 ```{R}
-# your plot 1
+MoonArtistFreq <- joined %>% na.omit() %>% group_by(MoonConstellation, artistName) %>% summarize(ArtistFreq = n()) %>% top_n(n = 5, wt = ArtistFreq) 
+
+ggplot(MoonArtistFreq, aes(x=artistName, y=ArtistFreq, fill= MoonConstellation)) + geom_errorbar(stat="summary") + geom_bar(show.legend = F, stat = "summary") + geom_hline(alpha = 0.5, yintercept = median(MoonArtistFreq$ArtistFreq))+ facet_wrap(~MoonConstellation, scales = "free") + labs(x = NULL, y = "Artist Frequency by Moon Constellation") + coord_flip() + theme( panel.background = element_rect(fill = "lightcyan", colour = "lightblue"), panel.grid.major = element_blank(),panel.grid.minor = element_blank(), text = element_text(size = 8), strip.text = element_text(size = 10), strip.background =element_rect(fill="lightcyan3")) + labs(x = "Artist Name", title = "Times Listened to an Artist within Moon Constellation Period") + scale_fill_manual(values = c("palevioletred2", "salmon", "lightgreen", "skyblue2", "hotpink3", "indianred", "seagreen3", "skyblue3", "maroon", "salmon3", "seagreen4", "skyblue4"))
+                          
 ```
 
-Your discussion of plot 1
+This first plot depicts the top 5 artists for every Moon constellation period organized by the frequency in which they were played. The scaling of frequency is unique for every Zodiac sign, so a vertical line has been mapped to the median of the times an artist was played across all constellations in order to give an idea in which what constellations had more streaming activity compared to others.
+The Moon changes signs every two and a half days, which means this plot can give an idea as to the consistency in which my friends listens to the same artists if they appear across several zodiac signs or if a certain artist is listened to exclusively when the Moon was in a specific constellation.
+It can be seen that the highest frequency of streams grouped by Artist took place when the Moon was in Sagittarius, Aries, and Capricorn and the fewest frequency took place when the Moon was in Cancer and Leo. 
+Excessive listening to the group Mystery Skulls took place while the Moon was in Sagittarius, Scorpio, and Libra. Toby Fox also appears to be a very popular artist for her when the Moon was in Aries and Taurus.
+Artists that my friend listened to consistently because they appear across at least half of the zodiac signs include BTS, GOT7, and Ariana Grande.
+Extra note: one of the artists does not appear in the Capricorn plot because their characters are in Japanese (	
+たかやん) and changing the base family font would not help the characters render.
 
 ```{R}
-# your plot 2
+ggplot(joined, aes(x=MoonPhase, y=minutesPlayed))+ geom_jitter(alpha=.3, aes(col=MoonPhase), show.legend = F) + geom_boxplot(alpha=0.2, show.legend = F) + scale_y_continuous(limits = c(0, 15), name = "Duration of Listening Time in Minutes", breaks = seq(0,25,1)) + labs(x = "Phase of the Moon", title = "Distribution of Duration of Listening Time for each Phase of the Moon") + coord_flip() + theme(panel.background = element_rect(fill = "lavenderblush2", colour = "white")) 
 ```
 
-Your discussion of plot 2
+The second plot is a boxplot distribution for duration of listening time in minutes per song at every Moon phase as well as a jitter plot that further shows overlapping minute values. By looking at this distribution, one can determine if there was a certain Moon phase in which more songs were skipped early on, if entire songs were allowed to play out, or if longer media was listened to. 
+There are a few outliers not presented because they were listening times from 10 hour long sleeping/meditation ambient sounds. However, these especially high data points took place while the Moon phase was Waxing Gibbous and Crescent, and the jitter plot does indicate longer listening times at these phases. Outliers excluded, the longest song listening time appears to have taken place when the Moon was Waxing Crescent. The phase at which the shortest listening time occurred is difficult to determine as every moon phase had instances in which the song was skipped very quickly, but the New and Full Moon phases have the lowest as well as similar first quartiles. The Full Moon phase also has the lowest median listening duration, indicating that either very short media was listened to when the moon was full or songs were skipped pretty early on.
+Also, general streaming patterns from the density of the jitter plot at each phase can be determined. One would expect higher density of points within the  waxing/waning phases, as they take place over the course of a few days rather than at one or two. However, the Waning Gibbous phase does appear to have a lower density of data when compared to the other intermediate phases and the New Moon phase has a slightly higher density of data when compared to the principal Full Moon and Quarter phases.
+One final thing I noticed is that my friend had no streaming history when the moon was in the Last Quarter! I was really nervous when I had seen it missing in the plot, but there were moon age values dropped when everything was joined meaning that there were repeated instances at the same time in the moon's cycle in which my friend just didn't use her Spotify.
+
+
 
 ```{R}
-# your plot 3
+SunSongFreq <- joined %>% na.omit() %>% group_by(SunConstellation, trackName) %>% summarize(SongFreq = n()) 
+
+ggplot(SunSongFreq, aes(x=SongFreq, fill=SunConstellation)) + geom_rug(aes(color="red", show.legend = F)) + geom_density(alpha=.3, show.legend = F) + facet_grid(SunConstellation~.)+ scale_x_continuous(limits=c(0,25), name = "Frequency of Song Played") + guides(color = F) + ylab("Density") + ggtitle("Density and Rug Plot for Song Play Frequency per Zodiac Season") + theme( panel.background = element_rect(fill = "mistyrose1", colour = "thistle2"), strip.text = element_text(size = 10), strip.background =element_rect(fill="mistyrose3"))
 ```
 
-Your discussion of plot 3
+This final plot depicts the density of frequency at which a song was played during zodiac season, or in other words which constellation the sun was in. The additional rug plot provides discrete markers to help visualize more frequency values within this distribution. 
+Every zodiac "season" lasts around 30 days, so this is essentially indicates a repeating song streaming pattern on a monthly basis all astrology aside. These density plots are mostly telling of how often a song was listened to very few times within a zodiac season. The density of distribution of song frequencies at 1 is highest when the sun was in Virgo, indicating that my friend listened to more songs just once from August 22nd to September 22nd and thus had a greater diversity in her song streaming history. The zodiac season Scorpio also has a more concentrated density of song frequency at 1, and the red rug plot lines indicate that there are no instances that a song was played more than 10 times when the sun was in Scorpio.
+However, the density of song frequency is less concentrated at values 1 and 2 for the zodiac seasons Libra, Sagittarius, and Capricorn indicating that when the sun was in these constellations the same songs were repeated often.
 
 #### Concluding Remarks
 
-If any!
+There were a lot of ups and downs in doing this project! I'm very pleased that the data I acquired was pretty neat and joined nicely, but I had the most trouble with visualization because I was the most interested in categorical variables and you can only make so many graphs with those. A lot of conclusions drawn from the plots or summary statistics in general came from the fact that some moon phases and constellations had more data than others, so I would love to analyze these variables again over a longer time period to make sure that results aren't skewed from some variable groups having a fewer number of observations versus others.
 
 
 
